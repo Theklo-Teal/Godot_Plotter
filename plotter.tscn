@@ -1,0 +1,197 @@
+[gd_scene load_steps=6 format=3 uid="uid://dlev4jt2lnky0"]
+
+[ext_resource type="Script" uid="uid://ci44xjyii5hxq" path="res://modules/plotter.gd" id="1_i6di3"]
+[ext_resource type="Script" uid="uid://cwui1s6pc6tyw" path="res://modules/Dual_Slider/v_dual_slider.gd" id="2_i6di3"]
+[ext_resource type="Script" uid="uid://d2j6xgoexlp0p" path="res://modules/Dual_Slider/h_dual_slider.gd" id="3_d8dio"]
+
+[sub_resource type="GDScript" id="GDScript_ig7tw"]
+script/source = "extends ColorRect
+
+signal selected_sample(idx:int)
+
+const AXIS_COLOR = Color(0.98, 0.454, 0.294, 1.0)
+const LINE_COLOR = Color(0.393, 0.393, 0.393, 1.0)
+const LINE_THICK = 4
+
+#@export var editable : bool = true
+#@export_range(0, 1, 0.01) var sample_clearance : float = 0.8 ## Space around each sample where they shouldn't overlap others.
+@export_storage var samples : Array[Vector2]
+@export_storage var tooltip : Array[Array]
+@export_storage var samp_id : Array[int]
+
+var margin : float = 0.4  # Space around a sample in the X axis where other samples can't overlap.
+var hovering : int = -1  # Which element of «samples» the mouse is hovering
+
+func _draw() -> void:
+	var center = owner.sample_coord(Vector2.ZERO)
+	draw_line(Vector2(center.x,0), Vector2(center.x, size.y), AXIS_COLOR)
+	draw_line(Vector2(0, center.y), Vector2(size.x, center.y), AXIS_COLOR)
+	
+	draw_string(SystemFont.new(), Vector2(50, center.y - 6), owner.Horiz_Title, 0, -1, 12, AXIS_COLOR)
+	draw_string(SystemFont.new(), Vector2(center.x + 8, 50), owner.Verti_Title, 0, -1, 12, AXIS_COLOR, 3, 0, TextServer.ORIENTATION_VERTICAL)
+	
+	for n in range(samples.size()):
+		var curr = owner.sample_coord(samples[n] * Vector2(1,-1))
+		if n+1 < samples.size():
+			var next = owner.sample_coord(samples[n+1] * Vector2(1,-1))
+			if next.x < 0 or curr.x > size.x:
+				continue
+			draw_line(curr, next, LINE_COLOR, LINE_THICK)
+		if n == hovering:
+			draw_circle(curr, LINE_THICK * 1.4, LINE_COLOR.lightened(0.5))
+		else:
+			draw_circle(curr, LINE_THICK, LINE_COLOR)
+	
+	if is_editing:
+		draw_line(Vector2(drag_pos.x-margin, 0), Vector2(drag_pos.x-margin, size.y), LINE_COLOR)
+		draw_line(Vector2(drag_pos.x+margin, 0), Vector2(drag_pos.x+margin, size.y), LINE_COLOR)
+		var rect = Rect2(drag_pos - Vector2(0.5, 0.5) * LINE_THICK, Vector2.ONE * LINE_THICK)
+		draw_rect(rect, LINE_COLOR.lightened(0.5))
+
+var start_scroll_lower : Vector2
+var start_scroll_upper : Vector2
+var drag_pos : Vector2
+var is_panning : bool
+var is_editing : bool
+func _gui_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton:
+		if event.button_index == MOUSE_BUTTON_RIGHT and owner.editable:
+			drag_pos = event.position
+			is_editing = event.is_pressed()
+			if not is_editing:
+				var point = owner.coord_sample(event.position)
+				for n in range(samples.size()):
+					if abs(point.x - samples[n].x) < margin:
+						samples[n].y = point.y
+						break
+					elif point.x > samples[n].x:
+						samples.insert(n, point)
+						tooltip.insert(n, [str(point.x), str(point.y)])
+						samp_id.insert(n, samp_id.max())
+						break
+			queue_redraw()
+		elif event.button_index == MOUSE_BUTTON_MIDDLE:
+			drag_pos = event.position
+			start_scroll_lower = Vector2( owner.get_node(\"%HZoom\").lower, owner.get_node(\"%VZoom\").lower )
+			start_scroll_upper = Vector2( owner.get_node(\"%HZoom\").upper, owner.get_node(\"%VZoom\").upper )
+			is_panning = event.is_pressed()
+		elif event.button_index == MOUSE_BUTTON_LEFT and event.is_released():
+			selected_sample.emit(samp_id[hovering])
+	
+	if event is InputEventMouseMotion:
+		if is_editing:
+			drag_pos = event.position
+			queue_redraw()
+		
+		if is_panning:
+			var pan_diff = event.position - drag_pos
+			owner.get_node(\"%HZoom\").lower = pan_diff.x + start_scroll_lower.x
+			owner.get_node(\"%HZoom\").upper = pan_diff.x + start_scroll_upper.x
+			owner.get_node(\"%VZoom\").lower = pan_diff.y + start_scroll_lower.y
+			owner.get_node(\"%VZoom\").upper = pan_diff.y + start_scroll_upper.y
+			queue_redraw()
+		
+		var n : int = 0
+		var old_hovering = hovering
+		hovering = -1
+		$Label.hide()
+		for each in samples:
+			var each_x = owner.sample_coord(each).x
+			if abs(event.position.x - each_x) <= margin:
+				$Label.text = owner.Horiz_Pref + \" \"
+				$Label.text += str(tooltip[n][0])
+				$Label.text += \" \" + owner.Horiz_Suff
+				$Label.text += \"\\n\"
+				$Label.text += owner.Verti_Pref + \" \"
+				$Label.text += str(tooltip[n][1])
+				$Label.text += \" \" + owner.Verti_Suff
+				 
+				$Label.position = owner.sample_coord(each * Vector2(1,-1))
+				$Label.position.x -= $Label.size.x
+				$Label.position.y += [-$Label.size.y - 10, 10][int(event.position.y > $Label.position.y)]
+				$Label.show()
+				if old_hovering != n:
+					hovering = n
+					queue_redraw()
+				break
+			n += 1
+
+func _on_v_zoom_value_changing(_start: float, _stop: float) -> void:
+	queue_redraw()
+	
+func _on_h_zoom_value_changing(start: float, stop: float) -> void:
+	margin = (size.x / (stop - start)) * owner.sample_clearance
+	queue_redraw()
+"
+
+[sub_resource type="LabelSettings" id="LabelSettings_h2yge"]
+font_size = 12
+shadow_size = 2
+shadow_color = Color(0, 0, 0, 0.69411767)
+
+[node name="Plotter" type="VBoxContainer"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_vertical = 3
+script = ExtResource("1_i6di3")
+
+[node name="HBoxContainer2" type="HBoxContainer" parent="."]
+layout_mode = 2
+size_flags_vertical = 3
+mouse_filter = 0
+
+[node name="Plot" type="ColorRect" parent="HBoxContainer2"]
+unique_name_in_owner = true
+clip_contents = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+color = Color(0.239216, 0.258824, 0.278431, 1)
+script = SubResource("GDScript_ig7tw")
+
+[node name="Label" type="Label" parent="HBoxContainer2/Plot"]
+visible = false
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -20.0
+offset_right = 20.0
+offset_bottom = 23.0
+grow_horizontal = 2
+text = "NaN"
+label_settings = SubResource("LabelSettings_h2yge")
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="VZoom" type="Control" parent="HBoxContainer2"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(15, 15)
+layout_mode = 2
+size_flags_vertical = 3
+script = ExtResource("2_i6di3")
+min_span = 2.0
+metadata/_custom_type_script = "uid://cwui1s6pc6tyw"
+
+[node name="HBoxContainer3" type="HBoxContainer" parent="."]
+layout_mode = 2
+
+[node name="HZoom" type="Control" parent="HBoxContainer3"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(15, 15)
+layout_mode = 2
+size_flags_horizontal = 3
+script = ExtResource("3_d8dio")
+min_span = 2.0
+metadata/_custom_type_script = "uid://d2j6xgoexlp0p"
+
+[node name="fit_zoom" type="Button" parent="HBoxContainer3"]
+layout_mode = 2
+text = "Fit Zoom"
+
+[connection signal="value_changing" from="HBoxContainer2/VZoom" to="HBoxContainer2/Plot" method="_on_v_zoom_value_changing"]
+[connection signal="value_changing" from="HBoxContainer3/HZoom" to="HBoxContainer2/Plot" method="_on_h_zoom_value_changing"]
+[connection signal="pressed" from="HBoxContainer3/fit_zoom" to="." method="_on_fit_zoom_pressed"]
