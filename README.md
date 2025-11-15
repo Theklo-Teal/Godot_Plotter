@@ -6,17 +6,17 @@ https://diogo-duarte.itch.io/
 https://github.com/Theklo-Teal
 
 
-#DESCRIPTION
+# DESCRIPTION
 A window displaying an interactive graphical plot for the Godot Engine.
 
-#INSTALLATION
+# INSTALLATION
 Depends on DualSlider, which can be found here: https://github.com/Theklo-Teal/Godot_Dual_Slider
 
 This isn't technically a Godot Plugin, it doesn't use the special Plugin features of the Editor, so don't put it inside the "plugin" folder. The folder of the tool can be anywhere else you want, though, but I suggest having it in a "modules" folder.
 
 To add a plot node to your project, you should instantiate the scene «plotter.tscn».
 
-#USAGE
+# USAGE
 First you can set if you intend the plot to be modified by a user with the «editable» variable. If so, clicking with the right mouse button on a plot while the project is executing, will add sample points to the plot.You can set the «sample_clearance» which is how close together the samples can be. Clicking on the plot inside the clearance of an existing sample will just change the sample coordinate, rather than creating a new one.
 
 The middle mouse button can be held to pan the view, but it's more controllable to use the scrolling sliders which can also be used for zooming on a section of the plot range. The left mouse button can click on sample of the plot and this will emit the «selected_sample» signal you may choose to connect that informs the index in the list of samples in the plot.
