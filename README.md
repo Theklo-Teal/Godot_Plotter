@@ -12,7 +12,7 @@ A window displaying an interactive graphical plot for the Godot Engine.
 # INSTALLATION
 Depends on DualSlider, which can be found here: https://github.com/Theklo-Teal/Godot_Dual_Slider
 
-This isn't technically a Godot Plugin, it doesn't use the special Plugin features of the Editor, so don't put it inside the "plugin" folder. The folder of the tool can be anywhere else you want, though, but I suggest having it in a "modules" folder.
+This isn't technically a Godot Plugin, it doesn't use the special Plugin features of the Editor, so don't put it inside the "addon" folder. The folder of the tool can be anywhere else you want, though, but I suggest having it in a "modules" folder.
 
 To add a plot node to your project, you should instantiate the scene «plotter.tscn».
 
